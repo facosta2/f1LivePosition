@@ -1,6 +1,8 @@
 import useApi from "./hooks/useApi";
 import { Dimensions, Text, View } from "react-native";
 import { useState, useEffect, memo, useMemo } from "react";
+import trackCoordinates from './tracks/melbourn';
+import { Svg, Path } from 'react-native-svg';
 
 const DriverDots = memo(({ positionsArray }) => {
     return (
@@ -48,7 +50,7 @@ export default function App() {
 
     // MOCK DATA
     const STARTING_DATE = new Date("2023-04-01T06:00:00+00:00");
-    const INTERVAL = 350; // millisec
+    const INTERVAL = 2000; // millisec
     // I calculte the difference between the current time ant the startin time
     // This works as a clock updating the time
     const diffTime = new Date().getTime() - STARTING_DATE.getTime();
@@ -61,7 +63,7 @@ export default function App() {
             const min_timestamp = new Date().getTime() - diffTime;
             const min_date = formatForOpenF1(new Date(min_timestamp));
             const max_date = formatForOpenF1(new Date(min_timestamp + INTERVAL));
-            console.log(`Fetching: ${min_date} to ${max_date}`);
+            // console.log(`Fetching: ${min_date} to ${max_date}`);
             const response = await fetch(
                 `https://api.openf1.org/v1/location?session_key=7783&date>${min_date}&date<${max_date}`
             );
@@ -112,28 +114,58 @@ export default function App() {
 
     const CONTAINER_WIDTH = dimensions.width - MARGIN;
     const CONTAINER_HEIGHT = dimensions.height - MARGIN;
+    const trackPoints = trackCoordinates.map(c => ({ x: c.x, y: c.y }));
+    const driverPoints = positionsEntries.length > 0 
+        ? positionsEntries.map(([_, pos]) => ({ x: pos.x, y: pos.y }))
+        : [];
 
-    // Safe scaling - handle empty data
+    const allPoints = [...trackPoints, ...driverPoints];
+
+    let globalMinX = Infinity, globalMaxX = -Infinity;
+    let globalMinY = Infinity, globalMaxY = -Infinity;
+
+    if (allPoints.length > 0) {
+    globalMinX = Math.min(...allPoints.map(p => p.x));
+    globalMaxX = Math.max(...allPoints.map(p => p.x));
+    globalMinY = Math.min(...allPoints.map(p => p.y));
+    globalMaxY = Math.max(...allPoints.map(p => p.y));
+    }
+
+    const globalWidth = globalMaxX - globalMinX || 1;
+    const globalHeight = globalMaxY - globalMinY || 1;
+
+    const scaleX = CONTAINER_WIDTH / globalWidth;
+    const scaleY = CONTAINER_HEIGHT / globalHeight;
+    const scale = Math.min(scaleX, scaleY)
+
+    const centerX = (globalMinX + globalMaxX) / 2;
+    const centerY = (globalMinY + globalMaxY) / 2;
+
+    const transformPoint = (x, y) => {
+    const scaledX = (x - centerX) * scale + (CONTAINER_WIDTH / 2);
+    const scaledY = (y - centerY) * scale + (CONTAINER_HEIGHT / 2);
+    return { x: scaledX, y: scaledY };
+    };
+ 
     const positionsArray = useMemo(() => {
-        if (positionsEntries.length === 0) return [];
+    return driverPoints.map(({ x, y }, index) => {
+        const { x: sx, y: sy } = transformPoint(x, y);
+        return {
+        driverNum: positionsEntries[index][0], // Get driver number from original entry
+        x: sx,
+        y: sy
+        };
+    });
+    }, [driverPoints, scale, centerX, centerY, CONTAINER_WIDTH, CONTAINER_HEIGHT]);
 
-        const allX = positionsEntries.map(([_, pos]) => pos.x);
-        const allY = positionsEntries.map(([_, pos]) => pos.y);
-
-        const minX = Math.min(...allX);
-        const maxX = Math.max(...allX);
-        const minY = Math.min(...allY);
-        const maxY = Math.max(...allY);
-
-        const scaleX = CONTAINER_WIDTH / (maxX - minX || 1);
-        const scaleY = CONTAINER_HEIGHT / (maxY - minY || 1);
-
-        return positionsEntries.map(([driverNum, pos]) => {
-            const scaledX = (pos.x - minX) * scaleX;
-            const scaledY = (pos.y - minY) * scaleY;
-            return { driverNum, x: scaledX, y: scaledY };
-        });
-    }, [positionsEntries, CONTAINER_WIDTH, CONTAINER_HEIGHT]); 
+    const trackPathData = useMemo(() => {
+    if (trackPoints.length === 0) return '';
+    
+    return trackPoints.map((coord, i) => {
+        const { x, y } = transformPoint(coord.x, coord.y);
+        return `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    }).join(' ');
+    }, [trackPoints, scale, centerX, centerY, CONTAINER_WIDTH, CONTAINER_HEIGHT]);
 
     // not using this to prevent screen flashing
     // if (loadingDrivers || loadingPosition) return <Text>Loading...</Text>;
@@ -142,16 +174,16 @@ export default function App() {
     return (
         <View style={{ flex: 1, padding: (MARGIN/2) }}>
             {/*  Static container - won't re-render */}
-            <View style={{
-                position: "relative",
-                width: CONTAINER_WIDTH,
-                height: CONTAINER_HEIGHT,
-                borderWidth: 2,
-                borderColor: "#ccc",
-                backgroundColor: "#f5f5f5",
-                marginTop: 20
-            }}>
-                {/* Only dots re-render when positions change */}
+            <View style={{ position: "relative", width: CONTAINER_WIDTH, height: CONTAINER_HEIGHT }}>
+                <Svg width={CONTAINER_WIDTH} height={CONTAINER_HEIGHT}>
+                    <Path
+                    d={trackPathData}
+                    stroke="#333"
+                    strokeWidth={4}
+                    fill="none"
+                    opacity={0.4}
+                    />
+                </Svg>
                 <DriverDots positionsArray={positionsArray} />
             </View>
         </View>
@@ -160,4 +192,34 @@ export default function App() {
 
 function formatForOpenF1(date) {
     return date.toISOString().replace('.000Z', '+00:00');
+}
+
+function createTrackPath(coords, containerWidth, containerHeight) {
+  if (!coords || coords.length === 0) return '';
+
+  // Find track bounds
+  const allX = coords.map(c => c.x);
+  const allY = coords.map(c => c.y);
+  const minX = Math.min(...allX);
+  const maxX = Math.max(...allX);
+  const minY = Math.min(...allY);
+  const maxY = Math.max(...allY);
+
+  // Calculate scale to fit container
+  const trackWidth = maxX - minX || 1;
+  const trackHeight = maxY - minY || 1;
+  const scaleX = containerWidth / trackWidth;
+  const scaleY = containerHeight / trackHeight;
+  const scale = Math.min(scaleX, scaleY); // Use smaller scale to fit both dimensions
+
+  // Center the track in the container
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+
+  // Generate scaled path
+  return coords.map((coord, i) => {
+    const scaledX = (coord.x - centerX) * scale + (containerWidth / 2);
+    const scaledY = (coord.y - centerY) * scale + (containerHeight / 2);
+    return `${i === 0 ? 'M' : 'L'} ${scaledX} ${scaledY}`;
+  }).join(' ');
 }
