@@ -4,7 +4,17 @@ import { useState, useEffect, memo, useMemo } from "react";
 import trackCoordinates from './tracks/melbourn';
 import { Svg, Path } from 'react-native-svg';
 
-const DriverDots = memo(({ positionsArray }) => {
+const DriverDots = memo(({ positionsArray, driversColours }) => {
+    if (!driversColours || !Array.isArray(driversColours)) {
+        return null; // At the first render it would go in error otherwise
+    }
+    const getDriverColour = (num) => {
+        // Search for specific driver
+        const driverData = driversColours.find(d => String(d.driverNum) === String(num));
+
+        // Taking the colour of the driver
+        return driverData ? driverData.team_colour : "#007bff"; 
+    };
     return (
         <>
             {positionsArray.map(({ driverNum, x, y }) => (
@@ -17,7 +27,7 @@ const DriverDots = memo(({ positionsArray }) => {
                         width: 25,
                         height: 25,
                         borderRadius: 12.5,
-                        backgroundColor: "#007bff",
+                        backgroundColor: `#${getDriverColour(driverNum)}`,
                         justifyContent: "center",
                         alignItems: "center",
                         transform: [{ translateX: -12.5 }, { translateY: -12.5 }]
@@ -34,7 +44,7 @@ const DriverDots = memo(({ positionsArray }) => {
 
 export default function App() {
 
-    // Not used as of right now, useful for getting drivers colors
+    // Not used as of right now
     // const {
     //     data: drivers,
     //     loading: loadingDrivers,
@@ -45,15 +55,50 @@ export default function App() {
 
     const [drivers_positions, setDriversPositions] = useState({});
     const [allLocations, setAllLocations] = useState([]);
+    const [driversColours, setDriversColours] = useState([]);
     // const [loadingPosition, setLoadingPosition] = useState(false);
     const [errorPosition, setErrorPosition] = useState(null);
 
     // MOCK DATA
-    const STARTING_DATE = new Date("2023-04-01T06:00:00+00:00");
-    const INTERVAL = 2000; // millisec
-    // I calculte the difference between the current time ant the startin time
+    const STARTING_DATE = new Date("2023-04-01T06:00:00+00:00"); // Quali Melbourne 2023
+    const INTERVAL = 2000; // millisec, minimun allowed for free by openF1
+    // I calculte the difference between the current time and the starting time
     // This works as a clock updating the time
     const diffTime = new Date().getTime() - STARTING_DATE.getTime();
+
+    // Getting drivers colours
+    useEffect(() => {
+        const fetchAllColors = async () => {
+            try {
+                // Single request for ALL drivers
+                const response = await fetch(
+                    `https://api.openf1.org/v1/drivers?session_key=7783`
+                );
+                
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Map the single response array to the state
+                const results = data.map(driver => ({
+                    driverNum: driver.driver_number,
+                    team_colour: driver.team_colour
+                }));
+
+                setDriversColours(results);
+                // console.log("All driver colors fetched:", results);
+
+            } catch (error) {
+                console.error("Error fetching driver colors:", error);
+            }
+        };
+        // Only run if drivers data isn't already loaded
+        if (!driversColours || driversColours.length === 0) {
+            fetchAllColors();
+        }
+    }, []);
     
 
     // Fetch location data
@@ -63,7 +108,7 @@ export default function App() {
             const min_timestamp = new Date().getTime() - diffTime;
             const min_date = formatForOpenF1(new Date(min_timestamp));
             const max_date = formatForOpenF1(new Date(min_timestamp + INTERVAL));
-            // console.log(`Fetching: ${min_date} to ${max_date}`);
+
             const response = await fetch(
                 `https://api.openf1.org/v1/location?session_key=7783&date>${min_date}&date<${max_date}`
             );
@@ -84,6 +129,7 @@ export default function App() {
         return () => clearInterval(intervalId);
     }, []); 
 
+    // Set drivers coordinates
     useEffect(() => {
         if (allLocations && Array.isArray(allLocations)) {
             const positions = {};
@@ -101,7 +147,7 @@ export default function App() {
 
     const positionsEntries = Object.entries(drivers_positions);
 
-    // Container dimensions (in pixels)
+    // Container dimensions
     const MARGIN = 50;
     const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
@@ -121,6 +167,7 @@ export default function App() {
 
     const allPoints = [...trackPoints, ...driverPoints];
 
+    // Set screen edges
     let globalMinX = Infinity, globalMaxX = -Infinity;
     let globalMinY = Infinity, globalMaxY = -Infinity;
 
@@ -141,6 +188,7 @@ export default function App() {
     const centerX = (globalMinX + globalMaxX) / 2;
     const centerY = (globalMinY + globalMaxY) / 2;
 
+    // Points trasformation for vector display
     const transformPoint = (x, y) => {
     const scaledX = (x - centerX) * scale + (CONTAINER_WIDTH / 2);
     const scaledY = (y - centerY) * scale + (CONTAINER_HEIGHT / 2);
@@ -184,7 +232,10 @@ export default function App() {
                     opacity={0.4}
                     />
                 </Svg>
-                <DriverDots positionsArray={positionsArray} />
+                <DriverDots 
+                    positionsArray={positionsArray} 
+                    driversColours={driversColours}
+                />
             </View>
         </View>
     );
