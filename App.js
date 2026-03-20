@@ -3,18 +3,12 @@ import { Dimensions, Text, View } from "react-native";
 import { useState, useEffect, memo, useMemo } from "react";
 import trackCoordinates from './tracks/melbourn';
 import { Svg, Path } from 'react-native-svg';
+import { formatForOpenF1, getDriverColour } from "./helpers/helpers";
 
 const DriverDots = memo(({ positionsArray, driversColours }) => {
     if (!driversColours || !Array.isArray(driversColours)) {
         return null; // At the first render it would go in error otherwise
-    }
-    const getDriverColour = (num) => {
-        // Search for specific driver
-        const driverData = driversColours.find(d => String(d.driverNum) === String(num));
-
-        // Taking the colour of the driver in hexadecimal
-        return driverData ? driverData.team_colour : "#007bff"; 
-    };
+    } 
     return (
         <>
             {positionsArray.map(({ driverNum, x, y }) => (
@@ -27,7 +21,7 @@ const DriverDots = memo(({ positionsArray, driversColours }) => {
                         width: 25,
                         height: 25,
                         borderRadius: 12.5,
-                        backgroundColor: `#${getDriverColour(driverNum)}`,
+                        backgroundColor: `#${getDriverColour(driverNum, driversColours)}`,
                         justifyContent: "center",
                         alignItems: "center",
                         transform: [{ translateX: -12.5 }, { translateY: -12.5 }]
@@ -218,7 +212,7 @@ export default function App() {
 
     // not using this to prevent screen flashing
     // if (loadingDrivers || loadingPosition) return <Text>Loading...</Text>;
-    if ( errorPosition) return <Text>Error: {errorDrivers?.message || errorPosition?.message}</Text>;
+    if ( errorPosition) return <Text>Error: { errorPosition?.message}</Text>;
 
     return (
         <View style={{ flex: 1, padding: (MARGIN/2) }}>
@@ -240,8 +234,4 @@ export default function App() {
             </View>
         </View>
     );
-}
-
-function formatForOpenF1(date) {
-    return date.toISOString().replace('.000Z', '+00:00');
 }
