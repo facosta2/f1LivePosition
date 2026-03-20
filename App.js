@@ -34,7 +34,7 @@ const DriverDots = memo(({ positionsArray }) => {
 
 export default function App() {
 
-    // Not used as of right onw
+    // Not used as of right now, useful for getting drivers colors
     // const {
     //     data: drivers,
     //     loading: loadingDrivers,
@@ -45,7 +45,7 @@ export default function App() {
 
     const [drivers_positions, setDriversPositions] = useState({});
     const [allLocations, setAllLocations] = useState([]);
-    const [loadingPosition, setLoadingPosition] = useState(false);
+    // const [loadingPosition, setLoadingPosition] = useState(false);
     const [errorPosition, setErrorPosition] = useState(null);
 
     // MOCK DATA
@@ -58,7 +58,7 @@ export default function App() {
 
     // Fetch location data
     const fetchLocations = async () => {
-        setLoadingPosition(true);
+        // setLoadingPosition(true);
         try {
             const min_timestamp = new Date().getTime() - diffTime;
             const min_date = formatForOpenF1(new Date(min_timestamp));
@@ -73,7 +73,7 @@ export default function App() {
         } catch (err) {
             setErrorPosition(err.message);
         } finally {
-            setLoadingPosition(false);
+            // setLoadingPosition(false);
         }
     };
 
@@ -192,34 +192,4 @@ export default function App() {
 
 function formatForOpenF1(date) {
     return date.toISOString().replace('.000Z', '+00:00');
-}
-
-function createTrackPath(coords, containerWidth, containerHeight) {
-  if (!coords || coords.length === 0) return '';
-
-  // Find track bounds
-  const allX = coords.map(c => c.x);
-  const allY = coords.map(c => c.y);
-  const minX = Math.min(...allX);
-  const maxX = Math.max(...allX);
-  const minY = Math.min(...allY);
-  const maxY = Math.max(...allY);
-
-  // Calculate scale to fit container
-  const trackWidth = maxX - minX || 1;
-  const trackHeight = maxY - minY || 1;
-  const scaleX = containerWidth / trackWidth;
-  const scaleY = containerHeight / trackHeight;
-  const scale = Math.min(scaleX, scaleY); // Use smaller scale to fit both dimensions
-
-  // Center the track in the container
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-
-  // Generate scaled path
-  return coords.map((coord, i) => {
-    const scaledX = (coord.x - centerX) * scale + (containerWidth / 2);
-    const scaledY = (coord.y - centerY) * scale + (containerHeight / 2);
-    return `${i === 0 ? 'M' : 'L'} ${scaledX} ${scaledY}`;
-  }).join(' ');
 }
