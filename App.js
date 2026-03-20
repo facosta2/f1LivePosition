@@ -12,7 +12,7 @@ const DriverDots = memo(({ positionsArray, driversColours }) => {
         // Search for specific driver
         const driverData = driversColours.find(d => String(d.driverNum) === String(num));
 
-        // Taking the colour of the driver
+        // Taking the colour of the driver in hexadecimal
         return driverData ? driverData.team_colour : "#007bff"; 
     };
     return (
@@ -60,6 +60,7 @@ export default function App() {
     const [errorPosition, setErrorPosition] = useState(null);
 
     // MOCK DATA
+    const SESSION_KEY = "7783";
     const STARTING_DATE = new Date("2023-04-01T06:00:00+00:00"); // Quali Melbourne 2023
     const INTERVAL = 2000; // millisec, minimun allowed for free by openF1
     // I calculte the difference between the current time and the starting time
@@ -72,7 +73,7 @@ export default function App() {
             try {
                 // Single request for ALL drivers
                 const response = await fetch(
-                    `https://api.openf1.org/v1/drivers?session_key=7783`
+                    `https://api.openf1.org/v1/drivers?session_key=${SESSION_KEY}`
                 );
                 
                 if (!response.ok) {
@@ -110,7 +111,7 @@ export default function App() {
             const max_date = formatForOpenF1(new Date(min_timestamp + INTERVAL));
 
             const response = await fetch(
-                `https://api.openf1.org/v1/location?session_key=7783&date>${min_date}&date<${max_date}`
+                `https://api.openf1.org/v1/location?session_key=${SESSION_KEY}&date>${min_date}&date<${max_date}`
             );
             const data = await response.json();
             setAllLocations(data);
